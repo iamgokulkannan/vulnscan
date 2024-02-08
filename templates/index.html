@@ -1,0 +1,15 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>VulnScan</title>
+  </head>
+  <body>
+    <h1>VulnScan</h1>
+    <form method="post" action="/">
+      {{ form.hidden_tag() }} {{ form.domain.label }} {{ form.domain(size=20) }}
+      {{ form.submit }}
+    </form>
+  </body>
+</html>
