@@ -47,9 +47,15 @@ from pathlib import Path
 from fuzzywuzzy import fuzz, process
 
 
-def get_ip_address(target):
-    ip_address = socket.gethostbyname(target)
-    return ip_address
+def get_ip_address(domain_name):
+    if not domain_name.startswith(("http://", "https://")):
+        domain_name = "http://" + domain_name
+
+    parsed_url = urlparse(domain_name)
+    domain_name = parsed_url.netloc  # Extracting domain name from the URL
+
+    ip_address = socket.gethostbyname(domain_name)
+    print(f"\nIP Address: {ip_address}")
 
 
 def scan_single_port(target, port):
@@ -57,9 +63,9 @@ def scan_single_port(target, port):
     scanner = nmap.PortScanner()
     result = scanner.scan(ip_address, arguments=f'-p {port}')
     if result['scan'][ip_address]['tcp'][int(port)]['state'] == 'open':
-        print('\033[32m' + f"\tPort {port} is open" + '\033[0m')
+        print('\033[32m' + f"Port {port} is open" + '\033[0m')
     else:
-        print('\033[31m' + f"\tPort {port} is closed" + '\033[0m')
+        print('\033[31m' + f"Port {port} is closed" + '\033[0m')
 
 
 def scan_custom_ports(target, ports):
@@ -104,7 +110,7 @@ def scan_range_of_ports(target, start_port, end_port):
         if 'tcp' in port_data:
             for port, port_info in port_data['tcp'].items():
                 if port_info['state'] == 'open':
-                    print('\033[32m' + f"\tPort {port} is open" + '\033[0m')
+                    print('\033[32m' + f"Port {port} is open" + '\033[0m')
         else:
             print(
                 '\033[31m' + f"\tNo open ports found in the specified range." + '\033[0m')
@@ -767,14 +773,12 @@ def analyze_certificate(domain, port):
                     cert, default_backend())
 
                 # Extract and display certificate details
-                print(
-                    f"\n[+] SSL/TLS Certificate Analysis for {domain}:{port}")
+                print(f"[+] SSL/TLS Certificate Analysis for {domain}:{port}")
                 print(
                     f"Common Name (CN): {x509_cert.subject.rfc4514_string()}")
                 print(f"Issuer: {x509_cert.issuer.rfc4514_string()}")
                 print(f"Serial Number: {x509_cert.serial_number}")
-                print(
-                    f"Issue Date / Renewal Date: {x509_cert.not_valid_before}")
+                print(f"Not Valid Before: {x509_cert.not_valid_before}")
                 print(f"Not Valid After: {x509_cert.not_valid_after}")
                 print(
                     f"Signature Algorithm: {x509_cert.signature_algorithm_oid._name}")
@@ -797,6 +801,7 @@ def analyze_certificate(domain, port):
 
 
 location_cache = {}
+
 location_cache = {}
 
 
@@ -840,33 +845,80 @@ def get_location(ip_address):
         location_cache[ip_address] = location_data
         return location_data
     except requests.exceptions.RequestException as e:
-        print(f"Click on this link for better reference --> " +
-              f'https://ipapi.co/{ip_address}/json/')
+        print(f"Error fetching location data: {e}")
         return None
     finally:
         # Introduce a delay between requests (adjust the time.sleep value based on rate limits)
-        time.sleep(5)  # Example: wait for 1 second between requests
+        time.sleep(1)  # Example: wait for 1 second between requests
+
+
+active_domains = []
+location_cache = []
+
+
+def generate_report(domain_name, ip_address, options, args, active_domains=None, location_data=None, get_server_info=None):
+    report_filename = f"VulnScan_Report_{time.strftime('%Y%m%d%H%M%S')}.pdf"
+
+    doc = SimpleDocTemplate(report_filename, pagesize=letter)
+    styles = getSampleStyleSheet()
+    content = []
+
+    content.append(Paragraph(
+        f"<u>VulnScan Report - {time.strftime('%Y-%m-%d %H:%M:%S')}</u>", styles['Title']))
+    content.append(Spacer(1, 12))
+
+    content.append(
+        Paragraph(f"<b>Target Domain:</b> {domain_name}", styles['Normal']))
+    content.append(
+        Paragraph(f"<b>IP Address:</b> {ip_address}", styles['Normal']))
+    content.append(Paragraph(f"<b>Scan Options:</b> {args}", styles['Normal']))
+    content.append(Spacer(1, 12))
+
+    if active_domains:
+        content.append(
+            Paragraph("<b>Active Subdomains:</b>", styles['Heading2']))
+        for subdomain in active_domains:
+            content.append(Paragraph(subdomain, styles['Normal']))
+        content.append(Spacer(1, 12))
+
+    if location_data:
+        content.append(
+            Paragraph("<b>Location Information:</b>", styles['Heading2']))
+        for key, value in location_data.items():
+            content.append(Paragraph(f"{key}: {value}", styles['Normal']))
+        content.append(Spacer(1, 12))
+
+    if get_server_info:
+        content.append(
+            Paragraph("<b>Server Information / Fingerprinting:</b>", styles['Heading2']))
+        for key, value in get_server_info().items():
+            content.append(Paragraph(f"{key}: {value}", styles['Normal']))
+        content.append(Spacer(1, 12))
+
+    doc.build(content)
+    print(f"\nReport generated: {report_filename}")
 
 
 if __name__ == "__main__":
     while True:
         domain_name = input("\nEnter the target domain : ")
-        options, args = get_args()
-        ip_address = socket.gethostbyname(domain_name)
-        print(f"\nIP Address: {ip_address}")
+        options, args = get_args()  # Ensure get_args is defined properly in your script
+        # Your existing code for IP address retrieval
+        get_ip_address(domain_name)
         while True:
             print("\n1. Change Domain")
             print("2. Port Scan")
-            print("3. Domain Enumeration (Subdomain Scanning)")
-            print("4. Domain Fingerprinting (Domain Information)")
+            print("3. Domain enumeration")
+            print("4. Domain Fingerprinting")
             print("5. SQL Injection Testing")
             print("6. XSS Testing")
             print("7. CSRF Detection")
             print("8. SSL / TLS Certificate Detection")
             print("9. Location of the Server")
-            print("10. Exit\n")
+            print("10. Report Generation")
+            print("11. Exit\n")
             choice = input(
-                "Enter a choice from the given options (1, 2, 3, 4, 5, 6, 7 , 8 , 9 or 10): ")
+                "Enter a choice from the given options (1, 2, 3, 4, 5, 6, 7 , 8 , 9 , 10 or 11): ")
 
             if choice == '1':
                 break  # Change Domain
@@ -880,7 +932,7 @@ if __name__ == "__main__":
                     print("4. Exit Port Scan\n")
                     try:
                         port_option = int(
-                            input("\nEnter your choice (1, 2, 3, or 4) for scanning the ports: "))
+                            input("\nEnter your choice (1, 2, 3, or 4): "))
                         if port_option == 1:
                             port = input("\nEnter the port number to scan: ")
                             start_time = time.time()
@@ -975,9 +1027,14 @@ if __name__ == "__main__":
                     print("\nLocation Information:")
                     for key, value in location_data.items():
                         print(f"{key}: {value}")
+                else:
+                    print("Unable to fetch location information.")
             elif choice == '10':
+                generate_report(
+                    domain_name, ip_address, options, args, active_domains, location_cache)
+            elif choice == '11':
                 print("Thank you for using VulnScan \n Exiting the script...")
                 sys.exit()
             else:
                 print(
-                    "\nInvalid option. Please enter a valid option (1, 2, 3, 4, 5, 6, 7 , 8 , 9 or 10)")
+                    "\nInvalid option. Please enter a valid option (1, 2, 3, 4, 5, 6, 7 , 8 , 9 , 10 or 11)")
