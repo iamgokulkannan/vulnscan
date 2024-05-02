@@ -280,6 +280,8 @@ def test_sql_injection(url):
     forms = get_forms(url)
     print(f"\n[+] {len(forms)} forms found on {url}.")
     sql_test_results.append(f"\n\t[+] {len(forms)} forms found on {url}.")
+    if (len(forms) == '0'):
+        print("\n No SQL Injection detected")
 
     for form in forms:
         form_details_dict = form_details(form)
@@ -313,6 +315,8 @@ def test_sql_injection(url):
                     single_quote_detected = True
                 elif payload == "\"":
                     double_quote_detected = True
+                else:
+                    print('\nNo SQL Injection Detected')
 
         # Print detection status for each payload
         if single_quote_detected:
@@ -970,20 +974,19 @@ def analyze_certificate(domain, port):
 
 
 location_cache = {}
-
 location_cache = {}
 
 
-def get_location(ip_address, retry_attempts=3):
+def get_location(ip_address, retry_attempts=1, delay_seconds=3):
     if ip_address in location_cache:
         return location_cache[ip_address]
-
     for attempt in range(retry_attempts):
         try:
             response = requests.get(f'https://ipapi.co/{ip_address}/json/')
             # Raise an exception for HTTP errors (e.g., 404, 500, etc.)
             response.raise_for_status()
             data = response.json()
+            print(response)
             location_data = {
                 "ip": ip_address,
                 "network": data.get("network"),
@@ -1013,22 +1016,26 @@ def get_location(ip_address, retry_attempts=3):
                 "org": data.get("org")
             }
             # Cache the result for future use
-
+            print(data)
             locations_data.append(location_data)
 
         except requests.exceptions.RequestException as e:
             print(f"Error fetching location data for {ip_address}: {e}")
-            if response.status_code == 429:
+            if response.status_code == 200:
+                # Parse the JSON data
+                json_data = response.json()
+                # Print the JSON data
+                print(json_data)
+            elif response.status_code == 429:
                 print("Too many requests. Retrying after waiting...")
                 time.sleep(2 ** attempt)  # Exponential backoff
             else:
                 print("Unknown error. Exiting...")
                 break
-    else:
-        print("Max retry attempts reached. Unable to fetch location information.")
-        locations_data.append(
-            'Unable to fetch the location , multiple requests are coming')
-        return None
+        except requests.exceptions.HTTPError as err:
+            print(f"HTTP error occurred: {err}")
+        except requests.exceptions.RequestException as err:
+            print(f"An error occurred: {err}")
 
 
 def sanitize_html(html_content):
@@ -1072,6 +1079,13 @@ def generate_report(domain_name, ip_address, options, args, active_domains=None,
     if port_scan_results:
         content.append(
             Paragraph("<b>Port Scanning Results:</b>", styles['Heading2']))
+        port_scan_results.extend([
+            "<br />"+"<b>Suggestions for Open Ports :</b><br/>"
+            ""
+            "<br />"+"<b>&nbsp;&nbsp;&nbsp;&nbsp;- Evaluate Each Open Port :</b> Determine whether each open port is necessary for the functioning of your website or if it's potentially a security risk.",
+            "<b>&nbsp;&nbsp;&nbsp;&nbsp;- Close Unnecessary Ports :</b> For any open ports that aren't needed for your website's operation, consider closing them through your server's firewall configuration or network settings.",
+            "<b>&nbsp;&nbsp;&nbsp;&nbsp;- Secure Necessary Ports :</b> For ports that are required for your website to function (such as port 80 for HTTP or port 443 for HTTPS), ensure they are properly secured with strong encryption protocols, secure configurations, and up-to-date software."
+        ])
         for result in port_scan_results:
             content.append(Paragraph(result, styles['Normal']))
         content.append(Spacer(1, 12))
@@ -1079,6 +1093,15 @@ def generate_report(domain_name, ip_address, options, args, active_domains=None,
     if active_domains:
         content.append(
             Paragraph("<b>Active Subdomains:</b>", styles['Heading2']))
+        active_domains.extend([
+            "<br />"+"<b>Suggestions for Domain Enumeration and Active Sub Domains :</b><br/>"
+            ""
+            "<br />"+"<b>&nbsp;&nbsp;&nbsp;&nbsp;- Remove DNS Entries :</b> If you want to completely disable access to certain subdomains, you can remove or modify the DNS records for those subdomains. This prevents users from resolving the IP address associated with those subdomains.",
+            "<b>&nbsp;&nbsp;&nbsp;&nbsp;- Redirect Subdomains :</b> Instead of completely removing the subdomains, you can set up redirection rules on your server to redirect requests from certain subdomains to the main domain or to a specific page. This way, users won't see the content of the subdomains, but they will be redirected to another location.",
+            "<b>&nbsp;&nbsp;&nbsp;&nbsp;- Configure Virtual Hosts :</b> If you're using a web server like Apache or Nginx, you can configure virtual hosts to only serve content for specific domains and subdomains. By configuring the virtual hosts appropriately, you can prevent access to certain subdomains.",
+            "<b>&nbsp;&nbsp;&nbsp;&nbsp;- Use Robots.txt :</b> You can use a robots.txt file to instruct search engines not to index certain subdomains or to exclude them from search results. This won't prevent direct access to the subdomains, but it can help prevent them from appearing in search engine results.",
+            "<b>&nbsp;&nbsp;&nbsp;&nbsp;- Authentication and Authorization :</b> Implement authentication and authorization mechanisms to restrict access to certain subdomains. This way, even if users know the URL of a subdomain, they won't be able to access it without proper credentials.",
+        ])
         for subdomain in active_domains:
             content.append(Paragraph(subdomain, styles['Normal']))
         content.append(Spacer(1, 12))
@@ -1086,45 +1109,87 @@ def generate_report(domain_name, ip_address, options, args, active_domains=None,
     if server_info:
         content.append(
             Paragraph("<b>Domain Fingerprinting:</b>", styles['Heading2']))
+        server_info.extend([
+            "<br />"+"<b>Suggestions for Domain Fingerprinting :</b><br/>"
+            ""
+            "<br />" +
+            "<b>&nbsp;&nbsp;&nbsp;&nbsp;- Apache :</b> Edit your Apache configuration file (httpd.conf) and ensure that the following directives are set <b>{ 'ServerSignature Off' , 'ServerTokens Prod' }</b> for hiding your apache information",
+            "<b>&nbsp;&nbsp;&nbsp;&nbsp;- Nginx :</b> In your Nginx configuration file (nginx.conf), make sure the following directives are set" +
+            "<br/>" +
+            "<b>{ 'server_tokens off;' }</b> for hiding your HTTP Header information",
+            "<b> &nbsp;&nbsp;&nbsp;&nbsp;- PHP :</b> To hide the PHP version information, you can adjust the expose_php directive in your PHP configuration file (php.ini). Set it to Off using <b>{ 'expose_php = Off' }</b>",
+        ])
         for info in server_info:  # Iterate over the elements of server_info list
-            content.append(Paragraph(info, styles['Normal']))
+            content.append(Paragraph(str(info), styles['Normal']))
         content.append(Spacer(1, 12))
 
     if sql_test_results:
         content.append(
             Paragraph("<b>SQL Injection Test Results:</b>", styles['Heading2']))
+        sql_test_results.extend([
+            "<br />"+"<b>Suggestions for SQL Injection :</b><br/>"
+            ""
+            "<br />"+"<b>&nbsp;&nbsp;&nbsp;&nbsp;- Don't Use HTML forms :</b> HTMl forms is directly linked with database so use some other options for survey or form related uses ",
+            "<b>&nbsp;&nbsp;&nbsp;&nbsp;- Use modern languages :</b> Instead of using normal HTML, CSS, JS use react, php and use NO SQL for Database  "])
         for info in sql_test_results:  # Iterate over the elements of sql_test_results list
-            content.append(Paragraph(info, styles['Normal']))
+            content.append(Paragraph(str(info), styles['Normal']))
         content.append(Spacer(1, 12))
 
     if xss_test_results:
         content.append(
             Paragraph("<b>XSS Testing Results:</b>", styles['Heading2']))
+        xss_test_results.extend([
+            "<br />"+"<b>Suggestions for SQL Injection :</b><br/>"
+            ""
+            "<br />"+"<b>&nbsp;&nbsp;&nbsp;&nbsp;- Don't Trust User Input :</b> Always validate and sanitize user input to prevent malicious scripts from executing.",
+            "<b>&nbsp;&nbsp;&nbsp;&nbsp;- Use Content Security Policy (CSP) :</b> Implement CSP headers to restrict the sources from which content can be loaded, mitigating XSS attacks.",
+            "<b>&nbsp;&nbsp;&nbsp;&nbsp;- Encode Output :</b> Encode output data using appropriate encoding methods (such as HTML escaping) to prevent script injection.",
+            "<b>&nbsp;&nbsp;&nbsp;&nbsp;- Educate Developers :</b> Train developers on secure coding practices to reduce the likelihood of introducing XSS vulnerabilities."
+        ])
         for info in xss_test_results:
             sanitized_info = sanitize_html(info)
-            content.append(Paragraph(sanitized_info, styles['Normal']))
+            content.append(Paragraph(str(sanitized_info), styles['Normal']))
         content.append(Spacer(1, 12))
 
     if csrf_results:
         content.append(
             Paragraph("<b>CSRF Test Results:</b>", styles['Heading2']))
+        csrf_results.extend([
+            "<br />"+"<b>Suggestions for CSRF Protection :</b><br/>"
+            ""
+            "<br />"+"<b>&nbsp;&nbsp;&nbsp;&nbsp;- Secure Configuration :</b> You can enable or disable this protection in the central-wrapper.conf file.",
+            "<b>&nbsp;&nbsp;&nbsp;&nbsp;- 1. </b> Stop the Central server.",
+            "<b>&nbsp;&nbsp;&nbsp;&nbsp;- 2. </b> Open the <installation_folder>/central/conf/central-wrapper.conf file.",
+            "<b>&nbsp;&nbsp;&nbsp;&nbsp;- 3. </b> Locate the Dcsrf.enabled property and change it to true, to enable CSRF protection.",
+            "<b>&nbsp;&nbsp;&nbsp;&nbsp;- 4. </b> Start the Central server."
+        ])
         for info in csrf_results:
-            # Ensure info is converted to string
+            # Ensure info is converted to strings
             content.append(Paragraph(str(info), styles['Normal']))
         content.append(Spacer(1, 12))
 
     if certificate_results:
         content.append(
             Paragraph("<b>Certificate Detection Results:</b>", styles['Heading2']))
+        certificate_results.extend([
+            "<br /><b>Suggestions for SSL/TLS Configuration :</b>",
+            "<br/>"+"<b>&nbsp;&nbsp;&nbsp;&nbsp;- Disable Certificate Transparency (CT) :</b> Certificate Transparency is a mechanism for publicly logging SSL certificates. If you have control over your certificate issuance process, you may be able to disable CT logging for your certificates. However, note that this may not be feasible for all certificate authorities (CAs) or certificate types.",
+            "<b>&nbsp;&nbsp;&nbsp;&nbsp;- Limit OCSP Stapling :</b> Online Certificate Status Protocol (OCSP) stapling is a feature that allows the web server to provide the OCSP response along with the SSL certificate during the SSL handshake. By limiting OCSP stapling, you may reduce the amount of certificate-related information exposed during the handshake.",
+            "<b>&nbsp;&nbsp;&nbsp;&nbsp;- Custom Error Pages :</b> Customize error pages for SSL/TLS handshake failures. Instead of displaying detailed error messages that may expose certificate details, provide generic error messages to users.<br />",
+            "<b>&nbsp;&nbsp;&nbsp;&nbsp;- Web Application Firewall (WAF) :</b> Use a WAF to filter and sanitize HTTP responses from your web server. This can help prevent leaking sensitive certificate details in error messages or responses.<br />",
+            "<b>&nbsp;&nbsp;&nbsp;&nbsp;- Load Balancer Configuration :</b> If your website is behind a load balancer or reverse proxy, ensure that the load balancer does not expose sensitive SSL certificate details in headers or error responses.",
+            "<b>&nbsp;&nbsp;&nbsp;&nbsp;- Security Headers: </b> Implement security headers such as Content Security Policy (CSP) to mitigate the impact of successful attacks that may expose certificate details."
+        ])
+
         for info in certificate_results:  # Iterate over the elements of certificate_results list
-            content.append(Paragraph(info, styles['Normal']))
+            content.append(Paragraph(str(info), styles['Normal']))
         content.append(Spacer(1, 12))
 
     if locations_data:
         content.append(
             Paragraph("<b>Location Information:</b>", styles['Heading2']))
         for info in locations_data:
-            content.append(Paragraph(info, styles['Normal']))
+            content.append(Paragraph(str(info), styles['Normal']))
         content.append(Spacer(1, 12))
 
     doc.build(content)
@@ -1138,6 +1203,7 @@ if __name__ == "__main__":
         # Call get_ip_address function to get IP address
         ip_address = get_ip_address(domain_name)
         get_ip_address(domain_name)
+        print('IP Address : ', ip_address)
         while True:
             print("\n1. Change Domain")
             print("2. Port Scan")
@@ -1263,8 +1329,6 @@ if __name__ == "__main__":
                     print("\nLocation Information:")
                     for key, value in location_data.items():
                         print(f"{key}: {value}")
-                else:
-                    print("Unable to fetch location information.")
             elif choice == '10':
                 generate_report(
                     domain_name, ip_address, options, args, active_domains, location_cache, server_info, port_scan_results, sql_test_results, xss_test_results, csrf_results, certificate_results, locations_data)
