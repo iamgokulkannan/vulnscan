@@ -1242,7 +1242,7 @@ def web_application_vulnerability_scanner(url):
 
         vulnerability_results = []  # List to store the results
 
-        zap = zapv2.ZAPv2(apikey="cbq78gjfpin0dgg5j0o7eefjnh")
+        zap = zapv2.ZAPv2(apikey="")
         zap.urlopen(url)
 
         # Spider scanning
