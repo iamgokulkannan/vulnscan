@@ -1,0 +1,14 @@
+requests
+selenium
+tqdm
+beautifulsoup4
+python-dotenv
+reportlab
+python-nmap
+cryptography
+html5lib
+progress
+numpy
+scipy
+colorama
+fuzzywuzzy
