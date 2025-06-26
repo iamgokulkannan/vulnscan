@@ -1,4 +1,4 @@
-password = '@Vi3iq4y8'
+password = '12345678'
 email = 'bugtesting@gmail.com'
 strings = ['red', 'bob', 'admin', 'alex', 'testing',
            'test', 'lol', 'yes', 'dragon', 'bad']  # list of generic, often-used words that may appear in usernames or weak passwords
