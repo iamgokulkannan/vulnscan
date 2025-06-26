@@ -1447,7 +1447,6 @@ if __name__ == "__main__":
                 analyze_certificate(domain, port)
                 print(certificate_results)
             if choice == '9':
-                api_key = "a6a61c1fc0554232afae54c335c96340"
                 location_data = get_location(ip_address, api_key)
                 if location_data:
                     print("\nLocation Information:")
